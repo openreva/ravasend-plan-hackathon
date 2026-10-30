@@ -1,0 +1,16 @@
+import 'dotenv/config';import express from 'express';import {randomUUID} from 'node:crypto';
+import {coordinate} from './src/agents.js';import {validateInput,type Plan} from './src/budget.js';import {PayPalSandbox} from './src/paypal.js';
+const app=express();app.disable('x-powered-by');app.use(express.json({limit:'16kb'}));
+app.use((req,res,next)=>{if(req.method==='POST'&&req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`)return res.status(403).json({error:'Cross-origin write blocked.'});next();});
+type Record={plan:Plan;expires:number;confirmed:boolean;orderId?:string;capture?:unknown;pending?:Promise<any>;createKey:string;captureKey:string};
+const plans=new Map<string,Record>();
+app.get('/api/config',(_req,res)=>res.json({ai:Boolean(process.env.OPENAI_API_KEY),paypal:Boolean(process.env.PAYPAL_CLIENT_ID&&process.env.PAYPAL_CLIENT_SECRET),clientId:process.env.PAYPAL_CLIENT_ID||null,sandbox:true}));
+app.post('/api/plan',async(req,res,next)=>{try{const input=validateInput(req.body);const mode=req.body.mode==='ai'?'ai':'offline';if(mode==='ai'&&!process.env.OPENAI_API_KEY)throw Error('AI credentials are not configured. Offline mode is available but is not an AI demo.');const result=await coordinate(input,mode);const id=randomUUID();plans.set(id,{plan:result.plan,expires:Date.now()+1800000,confirmed:false,createKey:randomUUID(),captureKey:randomUUID()});res.json({id,...result});}catch(e){next(e);}});
+function record(id:string){const p=plans.get(id);if(!p||p.expires<Date.now())throw Error('Plan expired. Generate a new plan.');return p;}
+function paypal(){if(!process.env.PAYPAL_CLIENT_ID||!process.env.PAYPAL_CLIENT_SECRET)throw Error('PayPal sandbox credentials are not configured.');return new PayPalSandbox(process.env.PAYPAL_CLIENT_ID,process.env.PAYPAL_CLIENT_SECRET);}
+app.post('/api/plan/:id/confirm',(req,res,next)=>{try{if(req.body.confirm!==true)throw Error('Explicit confirmation required.');const p=record(req.params.id);p.confirmed=true;res.json({confirmed:true});}catch(e){next(e);}});
+app.post('/api/plan/:id/order',async(req,res,next)=>{try{const p=record(req.params.id);if(!p.confirmed)throw Error('Review and confirm the plan first.');if(p.orderId)return res.json({id:p.orderId});if(!p.pending)p.pending=paypal().create(p.plan.incomeCents,p.createKey).then(o=>{p.orderId=o.id;return o;}).finally(()=>{p.pending=undefined;});const o=await p.pending;res.json({id:o.id});}catch(e){next(e);}});
+app.post('/api/plan/:id/capture',async(req,res,next)=>{try{const p=record(req.params.id);if(!p.confirmed||!p.orderId||req.body.orderId!==p.orderId)throw Error('Order must match this confirmed plan.');if(p.capture)return res.json(p.capture);if(!p.pending)p.pending=paypal().capture(p.orderId,p.captureKey).then(o=>{if(o.status!=='COMPLETED')throw Error('Sandbox capture not completed.');p.capture={id:o.id,status:o.status};return p.capture;}).finally(()=>{p.pending=undefined;});res.json(await p.pending);}catch(e){next(e);}});
+app.use(express.static('public'));
+app.use((err:Error,_req:express.Request,res:express.Response,_next:express.NextFunction)=>res.status(400).json({error:err.message}));
+app.listen(Number(process.env.PORT||3080),'127.0.0.1',()=>console.log('Ravasend Plan: http://127.0.0.1:'+(process.env.PORT||3080)));
