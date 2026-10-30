@@ -24,6 +24,10 @@ For PayPal, create/use a sandbox REST application at https://developer.paypal.co
 
 Never commit `.env`, API keys, sandbox passwords or customer information. Judges should supply their own sandbox credentials or arrange a private test session. No secrets are embedded in this repository.
 
+### Free local AI (no paid API)
+
+Install Ollama from its official website, then run `ollama pull qwen2.5:0.5b` and keep `ollama serve` running on localhost. Start this app with `LOCAL_AI=1 npm run dev`. This uses real Qwen2.5 inference through a custom Mozaik inference runner, with two concurrent requests. It does not use an OpenAI key or cloud billing. The small model may ask for clarification or fail validation; it is not a production-quality financial adviser. Explicit allocation omissions or changes are rejected. A CPU run can take around 40 seconds or longer.
+
 ## Architecture and real concurrency
 
 `src/agents.ts` creates a request-scoped Mozaik RuntimeState, joins the allocation agent, safety agent and coordinator observer, then starts two fire-and-forget `runLoop` calls. Neither agent awaits the other. Both see the same input; they return independent JSON answers. The observer records `inference.started`, `inference.completed` and `model.answer` events in shared state. It releases the final plan only after both answers are present. Safety concerns or schema failures stop the flow. The deterministic validator is authoritative for amounts and totals, regardless of model output.
@@ -38,9 +42,10 @@ Never commit `.env`, API keys, sandbox passwords or customer information. Judges
 
 - TypeScript checks: passed locally.
 - 14 automated tests: passed, including 100 generated rounding/reconciliation cases, a concurrent Mozaik integration test and mocked PayPal adapter checks. Mocked checks are not evidence of a real sandbox payment.
-- Actual provider-backed AI run: pending local credentials.
-- Actual PayPal sandbox create/approve/capture: pending sandbox credentials and buyer approval.
-- Public repository and final demo video: not yet published.
+- Actual local AI run: passed with Qwen2.5 0.5B through Mozaik. Both inference start events preceded either completion; all three allocations and the reserve were correct. Earlier small-model errors led to improved prompts and an explicit-allocation consistency guard.
+- Actual PayPal sandbox: OAuth and order creation passed. Buyer approval/capture remains pending. No real funds.
+- Public repository: https://github.com/openreva/ravasend-plan-hackathon (fresh clone passed TypeScript and all 14 tests).
+- Final demo video: pending integration verification.
 
 Do not submit the offline fixture as proof of a working PayPal + AI integration. Final entries need the real integration checks and a recorded demonstration.
 
