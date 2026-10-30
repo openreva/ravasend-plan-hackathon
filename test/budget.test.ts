@@ -1,0 +1,14 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {validateInput,validateAllocations,offlineExtract} from '../src/budget.js';
+const input={incomeCents:100001,currency:'USD' as const,instruction:'10% for tithe, 20% to mummy, 10% for rent'};
+test('rounding preserves every cent and leaves reserve',()=>{const p=validateAllocations(input,offlineExtract(input.instruction));assert.equal(p.reserveCents,60001);assert.equal(p.allocations.reduce((s,a)=>s+a.amountCents,0)+p.reserveCents,input.incomeCents);});
+test('negative income rejected',()=>assert.throws(()=>validateInput({...input,incomeCents:-1})));
+test('fractional cents rejected',()=>assert.throws(()=>validateInput({...input,incomeCents:1.5})));
+test('negative percentage rejected',()=>assert.throws(()=>validateAllocations(input,[{label:'rent',percent:-10}])));
+test('over-allocation rejected',()=>assert.throws(()=>validateAllocations(input,[{label:'rent',percent:90},{label:'family',percent:20}])));
+test('duplicate labels rejected',()=>assert.throws(()=>validateAllocations(input,[{label:'Rent',percent:20},{label:'rent',percent:20}])));
+test('nonfinite numbers rejected',()=>assert.throws(()=>validateAllocations(input,[{label:'rent',percent:NaN}])));
+test('precision cap enforced',()=>assert.throws(()=>validateAllocations(input,[{label:'rent',percent:1.123}])));
+test('unsupported currency rejected',()=>assert.throws(()=>validateInput({...input,currency:'NGN'})));
+test('unknown offline wording asks clarification',()=>assert.throws(()=>offlineExtract('send some money to mum')));
+test('100 generated plans reconcile exactly',()=>{for(let i=1;i<=100;i++){const x={...input,incomeCents:i*997};const p=validateAllocations(x,[{label:'rent',percent:33.33},{label:'family',percent:33.33},{label:'save',percent:33.34}]);assert.equal(p.allocations.reduce((s,a)=>s+a.amountCents,0)+p.reserveCents,x.incomeCents);assert.ok(p.reserveCents>=0);}});
