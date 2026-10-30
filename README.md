@@ -43,9 +43,9 @@ Install Ollama from its official website, then run `ollama pull qwen2.5:0.5b` an
 - TypeScript checks: passed locally.
 - 14 automated tests: passed, including 100 generated rounding/reconciliation cases, a concurrent Mozaik integration test and mocked PayPal adapter checks. Mocked checks are not evidence of a real sandbox payment.
 - Actual local AI run: passed with Qwen2.5 0.5B through Mozaik. Both inference start events preceded either completion; all three allocations and the reserve were correct. Earlier small-model errors led to improved prompts and an explicit-allocation consistency guard.
-- Actual PayPal sandbox: OAuth and order creation passed. Buyer approval/capture remains pending. No real funds.
+- Actual PayPal sandbox: OAuth, order creation, buyer approval and capture passed end to end on 30 October 2026. Test order `7T797569G0808353K` returned `COMPLETED` in the prototype. No real funds. A separate synthetic US sandbox merchant was used; this is not a representation of Ravasend's incorporation or live payment availability.
 - Public repository: https://github.com/openreva/ravasend-plan-hackathon (fresh clone passed TypeScript and all 14 tests).
-- Final demo video: pending integration verification.
+- Public captioned demo walkthrough: https://youtu.be/XYp1p1wooSE — genuine AI-result, concurrency-trace and completed sandbox checkout captures.
 
 Do not submit the offline fixture as proof of a working PayPal + AI integration. Final entries need the real integration checks and a recorded demonstration.
 
